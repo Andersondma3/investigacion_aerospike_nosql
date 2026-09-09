@@ -1,0 +1,22 @@
+services:
+  aerospike:
+    image: aerospike/aerospike-server:latest
+    container_name: aerospike_db
+    ports:
+      - "3000:3000"
+    environment:
+      - NAMESPACE=test
+
+  app:
+    image: python:3.11-slim
+    container_name: entradaflash_app
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: >
+      bash -c "apt-get update && 
+               apt-get install -y build-essential python3-dev && 
+               pip install aerospike tabulate pandas && 
+               tail -f /dev/null"
+    depends_on:
+      - aerospike
