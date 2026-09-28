@@ -2,20 +2,13 @@ import aerospike
 from aerospike import exception as ex
 import threading
 import time
+import os
 
-# Configuración de conexión al contenedor Docker
-config = {"hosts": [("aerospike", 3000)]}
-
-def inicializar_inventario_prueba(client, key, stock_inicial=10):
-    """Inicializa un registro de prueba."""
-    record = {
-        "evento": "Concierto Test",
-        "zona": "VIP",
-        "stock": stock_inicial,
-        "precio": 50000
-    }
-    client.put(key, record)
-    print(f"[SETUP] Inventario inicializado con stock: {stock_inicial}")
+# Configuración de conexión adaptada para funcionar igual que el script de Kelsy
+_EN_DOCKER = os.path.exists("/.dockerenv")
+HOST = os.getenv("AEROSPIKE_HOST", "aerospike" if _EN_DOCKER else "127.0.0.1")
+PORT = int(os.getenv("AEROSPIKE_PORT", "3000"))
+config = {"hosts": [(HOST, PORT)]}
 
 def reservar_entrada_cas(client, key, id_usuario):
     """
@@ -53,6 +46,10 @@ def reservar_entrada_cas(client, key, id_usuario):
             intentos += 1
             time.sleep(0.01) # Breve pausa para descongestionar el tráfico
             
+        except ex.RecordNotFound:
+            print(f"[{id_usuario}] ERROR: El evento no existe. ¿Ejecutaste generar_datos.py primero?")
+            return False
+            
         except ex.AerospikeError as e:
             print(f"[{id_usuario}] ERROR de Base de datos: {e}")
             return False
@@ -61,14 +58,27 @@ def reservar_entrada_cas(client, key, id_usuario):
     return False
 
 def simular_concurrencia():
-    client = aerospike.client(config).connect()
-    key = ("test", "inventario", "evt:test:zona:VIP")
+    try:
+        client = aerospike.client(config).connect()
+    except Exception as e:
+        print(f"Error de conexión: {e}")
+        return
+
+    # Apuntamos a un evento real generado por el script de Kelsy
+    # Evento 1: Festival Rock Tico, Zona: VIP (Inicia con 800 boletos)
+    key = ("test", "inventario", "evt:1:zona:VIP")
     
-    stock_inicial = 10
+    try:
+        # Leemos el stock inicial real de la base de datos
+        _, _, record_inicial = client.get(key)
+        stock_inicial = record_inicial.get("stock", 0)
+        print(f"[SETUP] Conectado al evento. Stock inicial detectado: {stock_inicial}")
+    except ex.RecordNotFound:
+        print("[ERROR] No se encontró el evento. Asegúrate de ejecutar el script de Kelsy (generar_datos.py) antes de correr esta prueba.")
+        client.close()
+        return
+    
     total_compradores = 25
-    
-    inicializar_inventario_prueba(client, key, stock_inicial)
-    
     resultados = {"exitos": 0, "fallos": 0}
     lock = threading.Lock()
 
@@ -102,12 +112,13 @@ def simular_concurrencia():
     print(f"Tiempo total de simulación: {(fin - inicio)*1000:.2f} ms")
     print(f"Reservas exitosas: {resultados['exitos']}")
     print(f"Reservas rechazadas: {resultados['fallos']}")
-    print(f"Stock final en BD: {record_final['stock']}")
+    print(f"Stock inicial: {stock_inicial} | Stock final en BD: {record_final['stock']}")
     
-    if record_final["stock"] == 0 and resultados["exitos"] == stock_inicial:
-        print("VEREDICTO: Consistencia perfecta mediante Bloqueo Optimista (CAS). Cero sobreventa.")
+    # Nueva lógica de validación matemática adaptada a cualquier volumen de datos
+    if record_final["stock"] == (stock_inicial - resultados["exitos"]):
+        print("VEREDICTO: Consistencia perfecta mediante Bloqueo Optimista (CAS). Matemáticas exactas.")
     else:
-        print("ALERTA: Se detectó sobreventa.")
+        print("ALERTA: Se detectó una inconsistencia en los datos.")
 
 if __name__ == "__main__":
     simular_concurrencia()
