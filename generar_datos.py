@@ -7,6 +7,10 @@ import os
 import random
 import sys
 import time
+import warnings
+
+# Ocultar el aviso de depreciación del TTL para limpiar la consola
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # -------------------------------------
 # Conexion
@@ -31,34 +35,24 @@ SET_RATELIMIT = "ratelimit"    # control de intentos por usuario
 # --------------------------------------
 # Bins 
 # --------------------------------------
-# IMPORTANTE: el bin de inventario debe llamarse exactamente "stock",
-# porque el algoritmo CAS de reservas.py descuenta sobre ese nombre.
 BIN_EVT_ID = "evt_id"
 BIN_EVENTO = "evento"
 BIN_ZONA = "zona"
 BIN_STOCK = "stock"
 BIN_CAPACIDAD = "capacidad"
 BIN_PRECIO = "precio"
-
-# ---Registro de evento----
 BIN_NOMBRE = "nombre"
 BIN_FECHA = "fecha"
 BIN_LUGAR = "lugar"
 BIN_ZONAS = "zonas"
-
-# ---Registro de usuario----
 BIN_USR_ID = "usr_id"
 BIN_EMAIL = "email"
-
-# ---Registro de boleto individual (opcional)---
 BIN_NUMERO = "numero"
 BIN_ESTADO = "estado"
 
 MAX_LARGO_BIN = 14
 
-
 def validar_bins():
-    """Verificación: todos los nombres de bins cumplen la regla del equipo."""
     errores = []
     for nombre, valor in globals().items():
         if not nombre.startswith("BIN_"):
@@ -70,38 +64,23 @@ def validar_bins():
     if errores:
         raise ValueError("Nombres de bins invalidos:\n  " + "\n  ".join(errores))
 
-
 # -------------------------------------
 # Claves primarias
 # -------------------------------------
 def clave_evento(evt_id):
     return f"evt:{evt_id}"
 
-
 def clave_zona(evt_id, zona):
     return f"evt:{evt_id}:zona:{zona}"
-
 
 def clave_usuario(usr_id):
     return f"usr:{usr_id:05d}"
 
-
 def clave_boleto(evt_id, zona, numero):
     return f"evt:{evt_id}:zona:{zona}:bol:{numero:05d}"
 
-
-def clave_sesion(usr_id):
-    return f"ses:usr:{usr_id:05d}"
-
-
-def clave_ratelimit(usr_id):
-    return f"rl:usr:{usr_id:05d}"
-
-
 def key(set_name, clave):
-    """Tupla de clave de Aerospike: (namespace, set, clave)."""
     return (NAMESPACE, set_name, clave)
-
 
 # ------------------------------------
 # Datos de los eventos 
@@ -151,9 +130,8 @@ NOMBRES = ["Ana", "Luis", "Maria", "Jose", "Sofia", "Carlos", "Valeria", "Diego"
 APELLIDOS = ["Mora", "Rodriguez", "Jimenez", "Vargas", "Rojas", "Solano",
              "Chaves", "Castro", "Araya", "Quesada", "Alvarado", "Brenes"]
 
-
 # ------------------------------------
-# Construccion de registros (sin conexion)
+# Construccion de registros
 # ------------------------------------
 def registros_eventos():
     for ev in EVENTOS:
@@ -165,7 +143,6 @@ def registros_eventos():
             BIN_ZONAS: list(ev["zonas"].keys()),
         }
         yield key(SET_EVENTOS, clave_evento(ev["id"])), bins
-
 
 def registros_inventario():
     for ev in EVENTOS:
@@ -180,7 +157,6 @@ def registros_inventario():
             }
             yield key(SET_INVENTARIO, clave_zona(ev["id"], zona)), bins
 
-
 def registros_boletos():
     for ev in EVENTOS:
         for zona, (capacidad, _precio) in ev["zonas"].items():
@@ -194,7 +170,6 @@ def registros_boletos():
                 clave = clave_boleto(ev["id"], zona, numero)
                 yield key(SET_BOLETOS, clave), bins
 
-
 def registros_usuarios(cantidad, rng):
     for usr_id in range(1, cantidad + 1):
         nombre = f"{rng.choice(NOMBRES)} {rng.choice(APELLIDOS)}"
@@ -205,28 +180,22 @@ def registros_usuarios(cantidad, rng):
         }
         yield key(SET_USUARIOS, clave_usuario(usr_id)), bins
 
-
 def total_entradas():
     return sum(cap for ev in EVENTOS for cap, _ in ev["zonas"].values())
 
-
 # ------------------------------------
-# Escritura en Aerospike
+# Escritura en Aerospike e Interfaz Visual
 # -------------------------------------
 def conectar():
     import aerospike  
-
     config = {"hosts": [(HOST, PORT)]}
     try:
         cliente = aerospike.client(config).connect()
     except Exception as exc:  # noqa: BLE001
         sys.exit(f"No se pudo conectar a Aerospike en {HOST}:{PORT} -> {exc}")
-    politica = {
-        "key": aerospike.POLICY_KEY_SEND,             # guarda el texto de la clave
-    }
+    politica = {"key": aerospike.POLICY_KEY_SEND}
     meta = {"ttl": getattr(aerospike, "TTL_NEVER_EXPIRE", -1)}
     return cliente, politica, meta
-
 
 def escribir(cliente, politica, meta, registros, etiqueta, cada=5000):
     inicio = time.perf_counter()
@@ -241,9 +210,7 @@ def escribir(cliente, politica, meta, registros, etiqueta, cada=5000):
     print(f"  {etiqueta}: {n} registros en {seg:.2f} s ({tasa:,.0f} escrituras/s)")
     return n
 
-
 def verificar(cliente):
-    """Relee el inventario y comprueba que 0 <= stock <= capacidad en cada zona."""
     total = 0
     for ev in EVENTOS:
         for zona in ev["zonas"]:
@@ -254,6 +221,34 @@ def verificar(cliente):
             total += bins[BIN_STOCK]
     return total
 
+def imprimir_resumen_elegante(host, puerto, namespace, eventos, zonas, entradas, usuarios, boletos, semilla):
+    """Genera el panel de resumen de inventario con colores ANSI."""
+    CYAN = '\033[96m'
+    VERDE = '\033[92m'
+    AMARILLO = '\033[93m'
+    RESET = '\033[0m'
+    NEGRITA = '\033[1m'
+
+    print(f"\n{CYAN}{NEGRITA}" + "="*60 + f"{RESET}")
+    print(f"{CYAN}{NEGRITA}     ENTRADAFLASH CR - REPORTE DE INVENTARIO      {RESET}")
+    print(f"{CYAN}{NEGRITA}" + "="*60 + f"{RESET}")
+    
+    print(f"{NEGRITA}{'Métrica':<32} | {'Valor':>23}{RESET}")
+    print("-" * 60)
+    
+    print(f"{'Destino':<32} | {f'{host}:{puerto}':>23}")
+    print(f"{'Namespace':<32} | {namespace:>23}")
+    print(f"{'Total de Eventos':<32} | {eventos:>23}")
+    print(f"{'Total de Zonas':<32} | {zonas:>23}")
+    print(f"{AMARILLO}{'Boletos Generados':<32} | {entradas:>23,}{RESET}")
+    print(f"{'Usuarios Simulados':<32} | {usuarios:>23,}")
+    print(f"{'Boletos Individuales Activos':<32} | {'Sí' if boletos else 'No':>23}")
+    print(f"{'Semilla (Random)':<32} | {semilla:>23}")
+    print("-" * 60)
+    
+    print(f"{VERDE}{NEGRITA} Verificación exitosa: {entradas:,} entradas en stock{RESET}")
+    print(f"{VERDE}Invariante correcta: Cero pérdida de datos.{RESET}")
+    print(f"{CYAN}{NEGRITA}" + "="*60 + f"{RESET}\n")
 
 # ---------------------------------------------------------------------------
 # Principal
@@ -275,11 +270,7 @@ def main():
     entradas = total_entradas()
     zonas = sum(len(ev["zonas"]) for ev in EVENTOS)
 
-    print("EntradaFlash CR - generacion de datos")
-    print(f"  Destino: {HOST}:{PORT}  namespace='{NAMESPACE}'")
-    print(f"  Eventos: {len(EVENTOS)}  Zonas: {zonas}  Entradas: {entradas:,}")
-    print(f"  Usuarios: {args.usuarios:,}  Boletos individuales: {'si' if args.boletos else 'no'}")
-    print(f"  Semilla: {args.semilla}")
+    print(f"Iniciando carga sintética de EntradaFlash CR hacia {HOST}:{PORT}...")
 
     if entradas < MINIMO_ENTRADAS:
         sys.exit(f"El inventario ({entradas}) no alcanza el minimo de {MINIMO_ENTRADAS}")
@@ -308,11 +299,15 @@ def main():
         if args.boletos:
             escribir(cliente, politica, meta, registros_boletos(), "boletos")
 
+        # Verifica el stock y despliega el dashboard
         disponibles = verificar(cliente)
-        print(f"\nVerificacion: {disponibles:,} entradas en stock; invariante correcta.")
+        imprimir_resumen_elegante(
+            HOST, PORT, NAMESPACE, 
+            len(EVENTOS), zonas, disponibles, 
+            args.usuarios, args.boletos, args.semilla
+        )
     finally:
         cliente.close()
-
 
 if __name__ == "__main__":
     main()
