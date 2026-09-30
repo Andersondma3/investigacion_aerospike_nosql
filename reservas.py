@@ -10,17 +10,11 @@ import os
 # ==========================================
 # CONFIGURACIÓN (Anderson - Entorno Docker)
 # ==========================================
->>>>>>> feature/expiracion-ttl
+
 _EN_DOCKER = os.path.exists("/.dockerenv")
 HOST = os.getenv("AEROSPIKE_HOST", "aerospike" if _EN_DOCKER else "127.0.0.1")
 PORT = int(os.getenv("AEROSPIKE_PORT", "3000"))
 config = {"hosts": [(HOST, PORT)]}
-
-def reservar_entrada_cas(client, key, id_usuario):
-    """
-    Intenta reservar 1 unidad usando Optimistic Locking (CAS).
-    Si hay colisión, reintenta automáticamente.
-    """
 
 # (Samuel - Configuración de expiración para pruebas)
 TTL_RESERVA = 10  # Segundos de vida de la reserva
@@ -70,28 +64,6 @@ def reservar_entrada_cas(client, key, id_usuario):
             return False
             
     print(f"[{id_usuario}] FALLO: Demasiada concurrencia tras {max_reintentos} intentos. Intente de nuevo.")
-    return False
-
-            key_tuple, meta, bins = client.get(key)
-            stock_actual = bins.get('stock', 0)
-            
-            if stock_actual < 1:
-                return False
-            
-            bins['stock'] = stock_actual - 1
-            politica = {'gen': aerospike.POLICY_GEN_EQ}
-            
-            client.put(key, bins, policy=politica, meta=meta)
-            return True
-            
-        except ex.RecordGenerationError:
-            intentos += 1
-            time.sleep(0.01)
-        except ex.AerospikeError as e:
-            print(f"[{id_usuario}] ERROR BD: {e}")
-            return False
-            
-    print(f"[{id_usuario}] FALLO: Exceso de concurrencia.")
     return False
 
 # ==========================================
@@ -179,7 +151,7 @@ def procesar_expiraciones(client, reservas_creadas):
 # ==========================================
 # MÓDULO 3: SIMULADOR DE CONCURRENCIA
 # ==========================================
->>>>>>> feature/expiracion-ttl
+
 def simular_concurrencia():
     try:
         client = aerospike.client(config).connect()
@@ -273,6 +245,7 @@ def simular_concurrencia():
 
 if __name__ == "__main__":
     simular_concurrencia()
+
 """
 Carga sintetica y reproducible de EntradaFlash CR en Aerospike.
 """
@@ -461,6 +434,7 @@ def total_entradas():
 # ------------------------------------
 # Escritura en Aerospike e Interfaz Visual
 # -------------------------------------
+
 def conectar():
     import aerospike  
     config = {"hosts": [(HOST, PORT)]}
@@ -586,9 +560,8 @@ def main():
 
 if __name__ == "__main__":
     main()
->>>>>>> e0c57fa (fix: integración definitiva de CAS con TTL)
 
-    # Resultados inmediatos de la ráfaga
+# Resultados inmediatos de la ráfaga
     _, _, record_post_compra = client.get(key)
     print("\n================ RESULTADOS INMEDIATOS ================")
     print(f"Reservas exitosas: {resultados['exitos']} | Rechazadas: {resultados['fallos']}")
