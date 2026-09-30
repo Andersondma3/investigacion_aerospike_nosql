@@ -1,82 +1,69 @@
 import os
 import time
-import random
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 import aerospike 
 from aerospike import exception as ex
 
-# Importar la lógica de transacciones atómicas del equipo
 try:
     import reservas 
 except ImportError:
     reservas = None
 
-# Configuración del entorno y conexión
 _EN_DOCKER = os.path.exists("/.dockerenv")
 HOST = os.getenv("AEROSPIKE_HOST", "aerospike" if _EN_DOCKER else "127.0.0.1")
 PORT = int(os.getenv("AEROSPIKE_PORT", "3000"))
 NAMESPACE = os.getenv("AEROSPIKE_NAMESPACE", "test")
 
-# Definicón de conjuntos (sets)
 SET_INVENTARIO = "inventario"
 SET_RESERVAS = "reservas"
 SET_CONTROLES = "controles"
 
-# Carga masiva
 TOTAL_PETICIONES = 5000
-CONCURRENCIA_HILOS = 32 #workers
+CONCURRENCIA_HILOS = 32
 
 EVT_ID = 1
 ZONA_OBJETIVO = "VIP"
-CANTIDAD_POR_COMPRA = 1
 
-# Configuración del cliente
 config = {"hosts": [(HOST, PORT)]}
 
-# Conexión al clúster
 def conectar():
     politica = {"key": aerospike.POLICY_KEY_SEND}
     cliente = aerospike.client(config).connect()
     return cliente, politica
 
-# Operación individual de reserva
 def ejecutar_transaccion_reserva(cliente, usuario_id):
-    """
-    Ejecuta un intento de reserva llamando a reservas.py y mide el tiempo exacto
-    """
     inicio = time.perf_counter()
     exito = False
+    clave_inv = (NAMESPACE, SET_INVENTARIO, f"evt:{EVT_ID}:zona:{ZONA_OBJETIVO}")
 
     try:
-        if reservas and hasattr(reservas, "reservar"):
-            exito = reservas.reservar(cliente, EVT_ID, ZONA_OBJETIVO, usuario_id, CANTIDAD_POR_COMPRA)
-        elif reservas and hasattr(reservas, "crear_reserva"):
-            exito = reservas.crear_reserva(cliente, EVT_ID, ZONA_OBJETIVO, usuario_id, CANTIDAD_POR_COMPRA)
+        # Enlace directo a la lógica unificada de Anderson y Samuel
+        if reservas and hasattr(reservas, "crear_reserva_temporal"):
+            resultado = reservas.crear_reserva_temporal(cliente, clave_inv, f"usr_bench_{usuario_id}", usuario_id)
+            exito = bool(resultado)
         else:
-            # Fallback CAS directo con política de reintentos (hasta 10 intentos ante rebotes)
-            clave_inv = (NAMESPACE, SET_INVENTARIO, f"evt:{EVT_ID}:zona:{ZONA_OBJETIVO}")
+            # Fallback CAS directo
             for _ in range(10):
                 _, meta, bins = cliente.get(clave_inv)
                 stock_actual = bins.get("stock", 0)
-                if stock_actual < CANTIDAD_POR_COMPRA:
+                if stock_actual < 1:
                     exito = False
                     break
                 politica_cas = {"gen": aerospike.POLICY_GEN_EQ}
                 meta_cas = {"gen": meta["gen"]}
                 try:
-                    cliente.put(clave_inv, {"stock": stock_actual - CANTIDAD_POR_COMPRA}, meta=meta_cas, policy=politica_cas)
+                    cliente.put(clave_inv, {"stock": stock_actual - 1}, meta=meta_cas, policy=politica_cas)
                     exito = True
                     break
                 except ex.RecordGenerationError:
-                    continue  # Rebote de colisión CAS detectado
+                    continue
     except Exception:
         exito = False
 
     latencia_ms = (time.perf_counter() - inicio) * 1000.0
     return latencia_ms, exito
 
-# Auditoría de consistencia
 def auditar_consistencia(cliente):
     clave_inv = (NAMESPACE, SET_INVENTARIO, f"evt:{EVT_ID}:zona:{ZONA_OBJETIVO}")
     _, _, bins = cliente.get(clave_inv)
@@ -93,9 +80,12 @@ def auditar_consistencia(cliente):
     else:
         print("Veredicto de Stock: FALLO CRÍTICO (Stock menor a cero detectado)")
 
-
-# Orquestador del Benchmark
 def iniciar_benchmark():
+    # Desactivar temporalmente los prints de reservas.py para no saturar la consola en la prueba de estrés
+    if reservas:
+        import sys
+        reservas.print = lambda *args, **kwargs: None
+
     print("--------------------------------------------------")
     print("EntradaFlash CR - Benchmark de Estrés y Concurrencia")
     print(f"Host: {HOST}:{PORT} | Namespace: {NAMESPACE}")
@@ -125,14 +115,12 @@ def iniciar_benchmark():
     duracion_total = time.perf_counter() - t_inicio
     tps = TOTAL_PETICIONES / duracion_total
 
-    # Cálculo de métricas y percentiles (Metodología IEEE)
     p50 = np.percentile(latencias, 50)
     p95 = np.percentile(latencias, 95)
     p99 = np.percentile(latencias, 99)
     media = np.mean(latencias)
 
-    # Salidas
-    print("\n--------------------------------------------------")
+    print("--------------------------------------------------")
     print("           RESULTADOS DEL BENCHMARK ")
     print("--------------------------------------------------")
     print(f"Tiempo de ejecución: {duracion_total:.2f} s")
@@ -146,7 +134,6 @@ def iniciar_benchmark():
 
     auditar_consistencia(cliente)
     cliente.close()
-
 
 if __name__ == "__main__":
     iniciar_benchmark()
