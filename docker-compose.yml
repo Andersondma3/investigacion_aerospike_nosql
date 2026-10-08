@@ -18,10 +18,10 @@ services:
     command: >
       bash -c "apt-get update &&
                apt-get install -y build-essential python3-dev &&
-               pip install aerospike tabulate pandas numpy matplotlib &&
+               pip install aerospike tabulate pandas numpy &&
                tail -f /dev/null"
     depends_on:
       - aerospike
 
 volumes:
-  aerospike_data:
+  aerospike_data:docker compose down
