@@ -1,6 +1,6 @@
+<h3 align="center">EntradaFlash CR</h3>
+
 <p align="center">
-  <strong><big><big>EntradaFlash CR</big></big></strong>
-  <br><br>
   <strong>XS0131 - Gestión de Bases de Datos y Análisis de Información</strong>
   <br><br>
    <strong>Universidad de Costa Rica</strong>
