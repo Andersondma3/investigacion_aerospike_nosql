@@ -1,8 +1,8 @@
 <h3 align="center">EntradaFlash CR</h3>
 
-**XS0131 - Gestión de Bases de Datos y Análisis de Información**
+XS0131 - Gestión de Bases de Datos y Análisis de Información
 
-**Universidad de Costa Rica**
+Universidad de Costa Rica
 
 **Modelo NoSQL:** Clave-Valor
 
