@@ -24,4 +24,4 @@ services:
       - aerospike
 
 volumes:
-  aerospike_data:docker compose down
+  aerospike_data:
