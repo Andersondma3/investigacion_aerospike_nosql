@@ -1,16 +1,11 @@
-<p align="center">
-  <strong><big><big><big>EntradaFlash CR</big></big></big></strong><br>
-  Sistema de reservas de alta concurrencia basado en Aerospike
-</p>
-
----
+<h1 align="center">EntradaFlash CR</h1>
 
 <p align="center">
   <strong>XS0131 - Gestión de Bases de Datos y Análisis de Información</strong>
 </p>
 
 <p align="center">
-  <strong>Universidad de Costa Rica</strong>
+  <strong>Institución:</strong> Universidad de Costa Rica
 </p>
 
 <p align="center">
@@ -352,9 +347,3 @@ docker compose down -v
 ```
 
 El segundo comando elimina los datos almacenados en el volumen, por lo que debe utilizarse solamente cuando se quiera reiniciar completamente el entorno.
-
----
-
-<p align="center">
-  <strong>EntradaFlash CR</strong>
-</p>
