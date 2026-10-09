@@ -1,4 +1,4 @@
-### EntradaFlash CR
+<h3 align="center">EntradaFlash CR</h3>
 
 **XS0131 - Gestión de Bases de Datos y Análisis de Información**
 
@@ -350,7 +350,3 @@ docker compose down -v
 ```
 
 El segundo comando elimina los datos almacenados en el volumen, por lo que debe utilizarse solamente cuando se quiera reiniciar completamente el entorno.
-
----
-
-**EntradaFlash CR**
