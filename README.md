@@ -1,18 +1,14 @@
-<h3 align="center">EntradaFlash CR</h3>
+### EntradaFlash CR
 
-<p align="center">
-  <strong>XS0131 - Gestión de Bases de Datos y Análisis de Información</strong>
-  <br><br>
-   <strong>Universidad de Costa Rica</strong>
-  <br><br>
-  <strong>Modelo NoSQL:</strong> Clave-Valor
-  <br><br>
-  <strong>Tecnología:</strong> Aerospike Community Edition
-  <br><br>
-  <a href="https://github.com/Andersondma3/investigacion_aerospike_nosql">
-    Repositorio
-  </a>
-</p>
+**XS0131 - Gestión de Bases de Datos y Análisis de Información**
+
+**Universidad de Costa Rica**
+
+**Modelo NoSQL:** Clave-Valor
+
+**Tecnología:** Aerospike Community Edition
+
+[Repositorio](https://github.com/Andersondma3/investigacion_aerospike_nosql)
 
 ---
 
@@ -47,6 +43,8 @@ EntradaFlash CR es una plataforma ficticia de venta de entradas para conciertos,
 El proyecto implementa una solución NoSQL basada en el modelo **Clave-Valor** utilizando **Aerospike Community Edition**. La idea principal es manejar inventario y reservas en escenarios donde muchas personas pueden intentar reservar entradas al mismo tiempo, evitando problemas como inventarios negativos o sobreventa.
 
 La solución trabaja con reservas temporales, confirmaciones, cancelaciones, sesiones, control de intentos, persistencia y pruebas de rendimiento bajo distintos niveles de concurrencia.
+
+El proyecto también cuenta con un archivo `main.py` que permite ejecutar de forma ordenada los principales componentes y pruebas de la solución.
 
 ---
 
@@ -115,6 +113,7 @@ investigacion_aerospike_nosql/
 ├── benchmark.py
 ├── docker-compose.yml
 ├── generar_datos.py
+├── main.py
 ├── metricas.py
 ├── prueba_recuperacion.py
 ├── rate_limit.py
@@ -125,6 +124,9 @@ investigacion_aerospike_nosql/
 ```
 
 #### Archivos principales
+
+**`main.py`**  
+Orquesta la ejecución de los principales componentes del proyecto y permite ejecutar el flujo general de pruebas desde un único punto de entrada.
 
 **`docker-compose.yml`**  
 Configura el entorno utilizado para ejecutar Aerospike y la aplicación en Python.
@@ -190,25 +192,33 @@ docker compose up -d
 docker compose ps
 ```
 
-#### 4. Verificar la conexión con Aerospike
+#### 4. Ejecutar el flujo completo
+
+El archivo `main.py` permite ejecutar de forma ordenada los principales componentes y pruebas del proyecto.
 
 ```bash
-docker compose exec app python test_conexion.py
+docker compose exec app python main.py
 ```
 
-#### 5. Generar y cargar los datos
+Durante esta ejecución se realizan la validación de conexión, la generación de datos, las pruebas de reservas, sesiones, control de intentos, carga y métricas de rendimiento.
 
-```bash
-docker compose exec app python generar_datos.py
-```
-
-Después de completar estos pasos, el entorno queda listo para ejecutar las pruebas.
+Las pruebas también pueden ejecutarse individualmente utilizando los comandos de la siguiente sección.
 
 ---
 
 ### Pruebas
 
-Las pruebas pueden ejecutarse individualmente según lo que se quiera comprobar.
+#### Verificar conexión con Aerospike
+
+```bash
+docker compose exec app python test_conexion.py
+```
+
+#### Generar y cargar los datos
+
+```bash
+docker compose exec app python generar_datos.py
+```
 
 #### Reservas y concurrencia
 
@@ -293,10 +303,11 @@ La prueba utiliza:
 Usuarios simulados:        50 000
 Intentos de reserva:      100 000
 Hilos concurrentes:            32
-Inventario inicial:           800
 ```
 
-Esta prueba permite comprobar el comportamiento del sistema cuando una gran cantidad de solicitudes compite por un inventario limitado.
+El benchmark toma el inventario disponible al iniciar la prueba y comprueba que las reservas realizadas coincidan con el inventario final.
+
+Esta prueba permite comprobar el comportamiento del sistema cuando una gran cantidad de solicitudes compite por un inventario limitado y verificar que no se produzca sobreventa.
 
 ---
 
@@ -339,3 +350,7 @@ docker compose down -v
 ```
 
 El segundo comando elimina los datos almacenados en el volumen, por lo que debe utilizarse solamente cuando se quiera reiniciar completamente el entorno.
+
+---
+
+**EntradaFlash CR**
