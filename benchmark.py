@@ -159,7 +159,8 @@ def ejecutar_transaccion_reserva(cliente, intento_id):
 
 def verificar_inventario(
     cliente,
-    reservas_creadas
+    reservas_creadas,
+    stock_inicial
 ):
 
     clave_inventario = (
@@ -177,13 +178,8 @@ def verificar_inventario(
         0
     )
 
-    capacidad_inicial = bins.get(
-        "capacidad",
-        0
-    )
-
     stock_esperado = (
-        capacidad_inicial - reservas_creadas
+        stock_inicial - reservas_creadas
     )
 
     print(
@@ -196,8 +192,8 @@ def verificar_inventario(
     )
 
     print(
-        f"Capacidad inicial:           "
-        f"{capacidad_inicial:,}"
+        f"Stock inicial:               "
+        f"{stock_inicial:,}"
     )
 
     print(
@@ -290,8 +286,24 @@ def iniciar_benchmark():
         "==================================================\n"
     )
 
-
     cliente, _ = conectar()
+
+    # Guardamos el stock real antes de iniciar el benchmark
+
+    clave_inventario = (
+        NAMESPACE,
+        SET_INVENTARIO,
+        f"evt:{EVT_ID}:zona:{ZONA_OBJETIVO}"
+    )
+
+    _, _, bins_iniciales = cliente.get(
+        clave_inventario
+    )
+
+    stock_inicial = bins_iniciales.get(
+        "stock",
+        0
+    )
 
     # Guardamos las latencias y contamos los resultados
 
@@ -301,7 +313,6 @@ def iniciar_benchmark():
     intentos_rechazados = 0
 
     inicio_prueba = time.perf_counter()
-
 
     # Ejecutamos los intentos al mismo tiempo
 
@@ -337,7 +348,6 @@ def iniciar_benchmark():
             else:
                 intentos_rechazados += 1
 
-
     # Calculamos los resultados
 
     duracion_total = (
@@ -368,7 +378,6 @@ def iniciar_benchmark():
     latencia_promedio = np.mean(
         latencias
     )
-
 
     # Mostramos los resultados
 
@@ -435,12 +444,12 @@ def iniciar_benchmark():
         f"{p99:.3f} ms"
     )
 
-
     # Verificamos el inventario al final
 
     verificar_inventario(
         cliente,
-        reservas_creadas
+        reservas_creadas,
+        stock_inicial
     )
 
     cliente.close()
