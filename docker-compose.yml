@@ -6,6 +6,8 @@ services:
       - "3000:3000"
     environment:
       - NAMESPACE=test
+    volumes:
+      - aerospike_data:/opt/aerospike/data
 
   app:
     image: python:3.11-slim
@@ -14,9 +16,12 @@ services:
       - .:/app
     working_dir: /app
     command: >
-      bash -c "apt-get update && 
-               apt-get install -y build-essential python3-dev && 
-               pip install aerospike tabulate pandas && 
+      bash -c "apt-get update &&
+               apt-get install -y build-essential python3-dev &&
+               pip install aerospike tabulate pandas numpy &&
                tail -f /dev/null"
     depends_on:
       - aerospike
+
+volumes:
+  aerospike_data:docker compose down
