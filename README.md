@@ -1,24 +1,16 @@
-<h1 align="center">EntradaFlash CR</h1>
-
 <p align="center">
+  <strong><big><big>EntradaFlash CR</big></big></strong>
+  <br><br>
   <strong>XS0131 - Gestión de Bases de Datos y Análisis de Información</strong>
-</p>
-
-<p align="center">
-  <strong>Institución:</strong> Universidad de Costa Rica
-</p>
-
-<p align="center">
+  <br><br>
+   <strong>Universidad de Costa Rica</strong>
+  <br><br>
   <strong>Modelo NoSQL:</strong> Clave-Valor
-</p>
-
-<p align="center">
+  <br><br>
   <strong>Tecnología:</strong> Aerospike Community Edition
-</p>
-
-<p align="center">
+  <br><br>
   <a href="https://github.com/Andersondma3/investigacion_aerospike_nosql">
-    Repositorio del proyecto
+    Repositorio
   </a>
 </p>
 
