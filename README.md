@@ -14,12 +14,12 @@ Universidad de Costa Rica
 
 ### Integrantes
 
-- Jessica González
-- Samuel Hernández
-- Anderson Martínez
-- Kelsy Montenegro
-- Thomas Vargas
-- Kendall Villegas
+- Jessica González Olivar
+- Samuel Hernández Vargas
+- Anderson Martínez Abarca
+- Kelsy Montenegro Barboza
+- Thomas Vargas Valverde
+- Kendall Villegas Espinoza
 
 ---
 
@@ -33,6 +33,7 @@ Universidad de Costa Rica
 - [Guía de uso](#guía-de-uso)
 - [Pruebas](#pruebas)
 - [Persistencia y recuperación](#persistencia-y-recuperación)
+- [Alcance del prototipo](#alcance-del-prototipo)
 
 ---
 
@@ -56,6 +57,13 @@ El proyecto también cuenta con un archivo `main.py` que permite ejecutar de for
 - Docker Compose
 - Cliente de Aerospike para Python
 
+El entorno se ejecuta localmente mediante Docker Compose y utiliza dos servicios principales:
+
+- Un contenedor para **Aerospike**, encargado del almacenamiento y gestión de los registros.
+- Un contenedor para **Python**, encargado de ejecutar la lógica y las pruebas de la aplicación.
+
+Esto permite mantener un entorno reproducible sin necesidad de instalar directamente Python o Aerospike en el sistema operativo del equipo.
+
 ---
 
 ### Modelo de datos
@@ -72,11 +80,11 @@ rl:usr:{id}
 
 Cada tipo de clave tiene un propósito dentro de la solución:
 
-- `evt:{id}` identifica un evento
-- `evt:{id}:zona:{zona}` identifica el inventario de una zona
-- `res:{id}` identifica una reserva
-- `ses:usr:{id}` identifica una sesión temporal
-- `rl:usr:{id}` identifica el registro utilizado para controlar intentos
+- `evt:{id}` identifica un evento.
+- `evt:{id}:zona:{zona}` identifica el inventario de una zona.
+- `res:{id}` identifica una reserva.
+- `ses:usr:{id}` identifica una sesión temporal.
+- `rl:usr:{id}` identifica el registro utilizado para controlar intentos.
 
 Los registros de inventario por zona manejan información como:
 
@@ -90,7 +98,11 @@ vendidos
 precio
 ```
 
+Separar el inventario por evento y zona permite que solicitudes dirigidas a zonas diferentes trabajen sobre registros independientes y evita generar contención innecesaria sobre una única clave.
+
 Para controlar modificaciones concurrentes sobre un mismo inventario se utiliza **control optimista de concurrencia** mediante la generación del registro de Aerospike.
+
+La generación puede entenderse como una versión del registro. Antes de aceptar una actualización, se comprueba que la versión leída por la aplicación continúe siendo la actual. Si otro proceso modificó el registro previamente, la escritura desactualizada es rechazada y la aplicación puede volver a consultar el estado antes de realizar otro intento.
 
 El conjunto de datos utilizado contiene:
 
@@ -129,7 +141,7 @@ investigacion_aerospike_nosql/
 Orquesta la ejecución de los principales componentes del proyecto y permite ejecutar el flujo general de pruebas desde un único punto de entrada.
 
 **`docker-compose.yml`**  
-Configura el entorno utilizado para ejecutar Aerospike y la aplicación en Python.
+Configura el entorno utilizado para ejecutar Aerospike y la aplicación en Python mediante contenedores independientes.
 
 **`generar_datos.py`**  
 Genera y carga los eventos, zonas e inventario utilizados durante las pruebas.
@@ -150,7 +162,7 @@ Ejecuta las pruebas de rendimiento para operaciones de lectura, escritura y actu
 Ejecuta la prueba general de carga con múltiples solicitudes concurrentes.
 
 **`prueba_recuperacion.py`**  
-Permite comprobar la persistencia de los datos después de reiniciar el entorno.
+Permite comprobar la persistencia de los datos después de reiniciar o recrear el entorno.
 
 **`test_conexion.py`**  
 Verifica la conexión entre Aerospike y Python.
@@ -186,6 +198,8 @@ cd investigacion_aerospike_nosql
 docker compose up -d
 ```
 
+Este comando levanta los servicios definidos en `docker-compose.yml`, incluyendo el contenedor de Aerospike y el contenedor utilizado para ejecutar la aplicación en Python.
+
 #### 3. Comprobar los servicios
 
 ```bash
@@ -214,11 +228,15 @@ Las pruebas también pueden ejecutarse individualmente utilizando los comandos d
 docker compose exec app python test_conexion.py
 ```
 
+Comprueba que la aplicación en Python pueda comunicarse correctamente con Aerospike antes de ejecutar el resto de las pruebas.
+
 #### Generar y cargar los datos
 
 ```bash
 docker compose exec app python generar_datos.py
 ```
+
+Genera los eventos, zonas e inventario inicial que serán utilizados por las demás pruebas.
 
 #### Reservas y concurrencia
 
@@ -235,6 +253,10 @@ Esta prueba permite comprobar:
 - Devolución de inventario
 - Operaciones concurrentes sobre una misma zona
 - Prevención de sobreventa
+
+Las reservas temporales utilizan **TTL (Time To Live)** para limitar el tiempo durante el cual permanecen activas. Si una reserva no se completa y expira, la lógica de la aplicación permite devolver el inventario correspondiente.
+
+El control de concurrencia evita que varias solicitudes basadas en una misma versión del inventario actualicen incorrectamente el registro.
 
 #### Sesiones
 
@@ -256,6 +278,8 @@ La prueba utiliza:
 - Ventana de 10 segundos
 
 Los intentos adicionales son rechazados temporalmente hasta que finaliza la ventana.
+
+Estos valores se utilizan con fines demostrativos y pueden modificarse según las necesidades de una implementación real.
 
 #### Rendimiento
 
@@ -291,6 +315,10 @@ Las métricas obtenidas incluyen:
 - Operaciones correctas
 - Operaciones fallidas
 
+Las pruebas permiten observar cómo cambia el comportamiento del sistema cuando aumenta la concurrencia.
+
+Las lecturas y escrituras sobre registros independientes pueden aprovechar mejor el aumento de hilos, mientras que múltiples actualizaciones sobre una misma clave generan mayor contención.
+
 #### Prueba general de carga
 
 ```bash
@@ -307,11 +335,24 @@ Hilos concurrentes:            32
 
 El benchmark toma el inventario disponible al iniciar la prueba y comprueba que las reservas realizadas coincidan con el inventario final.
 
-Esta prueba permite comprobar el comportamiento del sistema cuando una gran cantidad de solicitudes compite por un inventario limitado y verificar que no se produzca sobreventa.
+Esta prueba permite observar el comportamiento del sistema cuando una gran cantidad de solicitudes compite por un inventario limitado y verificar que no se produzca sobreventa.
+
+Una vez agotado el inventario, los intentos adicionales son rechazados correctamente. Estos rechazos representan el comportamiento esperado del sistema y no errores técnicos.
 
 ---
 
 ### Persistencia y recuperación
+
+Aerospike utiliza un volumen persistente de Docker para almacenar sus datos fuera del ciclo de vida del contenedor.
+
+El volumen **no es otro contenedor**. Es un espacio de almacenamiento administrado por Docker que permanece disponible aunque el contenedor de Aerospike se detenga o sea recreado.
+
+Esto permite recuperar los registros si, por ejemplo:
+
+- El contenedor se detiene debido a un error.
+- El contenedor se elimina accidentalmente.
+- Es necesario recrearlo después de un cambio de configuración.
+- El entorno se reinicia manteniendo el volumen existente.
 
 Primero se crea un registro de prueba:
 
@@ -324,6 +365,8 @@ Después se detienen los contenedores:
 ```bash
 docker compose down
 ```
+
+Este comando elimina los contenedores, pero conserva el volumen persistente.
 
 Se levanta nuevamente el entorno:
 
@@ -350,3 +393,41 @@ docker compose down -v
 ```
 
 El segundo comando elimina los datos almacenados en el volumen, por lo que debe utilizarse solamente cuando se quiera reiniciar completamente el entorno.
+
+Es importante distinguir entre **persistencia** y **alta disponibilidad**.
+
+La persistencia permite que los datos puedan recuperarse después de recrear el contenedor.
+
+Sin embargo, el proyecto utiliza una única instancia de Aerospike. Mientras esa instancia se encuentre fuera de servicio, la aplicación no dispone de otro nodo al cual enviar las solicitudes.
+
+Por esta razón, la persistencia local comprobada en el proyecto no representa alta disponibilidad ni replicación entre nodos.
+
+---
+
+### Alcance del prototipo
+
+La implementación permite demostrar:
+
+- Acceso directo a registros mediante claves conocidas.
+- Administración de inventario por evento y zona.
+- Reservas temporales.
+- Confirmación, cancelación y expiración de reservas.
+- Control optimista de concurrencia.
+- Prevención de sobreventa.
+- Sesiones temporales.
+- Control de intentos.
+- Persistencia local mediante volúmenes de Docker.
+- Pruebas de rendimiento bajo diferentes niveles de concurrencia.
+- Pruebas de carga con usuarios e intentos de reserva simulados.
+
+El proyecto fue evaluado utilizando **una única instancia de Aerospike en un entorno local mediante Docker**.
+
+Por lo tanto, el prototipo no pretende demostrar:
+
+- Alta disponibilidad.
+- Replicación entre servidores.
+- Tolerancia a fallos entre múltiples nodos.
+- Rendimiento de un clúster distribuido.
+- Rendimiento máximo de Aerospike en ambientes de producción.
+
+Como trabajo futuro, la solución puede extenderse hacia una arquitectura con múltiples nodos, replicación y tolerancia a fallos.
